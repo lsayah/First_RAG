@@ -1,2 +1,8 @@
 sentence-transformers
-chromadb
+groq
+python-dotenv
+faiss-cpu
+numpy
+requests
+beautifulsoup4
+PyPDF2
