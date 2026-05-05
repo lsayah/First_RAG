@@ -1,13 +1,11 @@
 # ============================================================================
-# 0. IMPORT
+# 0. IMPORT & CONFIGURATION
 # ============================================================================
 
 import requests
 from pathlib import Path
 from bs4 import BeautifulSoup
-
-DOCUMENTS_DIR = Path("documents")
-DOCUMENTS_DIR.mkdir(exist_ok=True)
+from config import DOCUMENTS_DIR
 
 # ============================================================================
 # 1. MiFID II

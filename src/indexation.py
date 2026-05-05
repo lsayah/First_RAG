@@ -1,13 +1,13 @@
 # ============================================================================
-# 0. IMPORT
+# 0. IMPORT & CONFIGURATION
 # ============================================================================
 
 import json
 import numpy as np
 import faiss
-from pathlib import Path
 from sentence_transformers import SentenceTransformer
 from utils.embedding import get_embeddings
+from config import INDEX_PATH, METADATA_PATH, DOCUMENTS_DIR
 
 
 # ============================================================================
@@ -45,27 +45,27 @@ def chunk_text(text, chunk_size=500, overlap=50):
     return chunks
 
 
-def load_and_chunk_documents(docs_dir="documents"):
-
-    all_chunks = []
-    all_metadata = []
-    
-    docs_path = Path(docs_dir)
-    for doc_file in sorted(docs_path.glob("*.txt")):
-        print(f"📄 {doc_file.name}...", end=" ")
-        
-        text = doc_file.read_text(encoding='utf-8')
-        metadata = extract_metadata(text)
-        metadata['filename'] = doc_file.name
-        
-        chunks = chunk_text(text)
-        print(f"{len(chunks)} chunks")
-        
-        for chunk in chunks:
-            all_chunks.append(chunk)
-            all_metadata.append(metadata)
-    
-    return all_chunks, all_metadata
+def load_and_chunk_documents():
+	"""Charge et chunke tous les documents du dossier DOCUMENTS_DIR"""
+	
+	all_chunks = []
+	all_metadata = []
+	
+	for doc_file in sorted(DOCUMENTS_DIR.glob("*.txt")):
+		print(f"📄 {doc_file.name}...", end=" ")
+		
+		text = doc_file.read_text(encoding='utf-8')
+		metadata = extract_metadata(text)
+		metadata['filename'] = doc_file.name
+		
+		chunks = chunk_text(text)
+		print(f"{len(chunks)} chunks")
+		
+		for chunk in chunks:
+			all_chunks.append(chunk)
+			all_metadata.append(metadata)
+	
+	return all_chunks, all_metadata
 
 
 # ============================================================================
@@ -97,10 +97,10 @@ def build_index():
     print("✅")
     
     print("💾 Sauvegarde...", end=" ")
-    faiss.write_index(index, "index.faiss")
+    faiss.write_index(index, str(INDEX_PATH))
     
     metadata_dict = {i: meta for i, meta in enumerate(metadata)}
-    with open("metadata.json", "w", encoding='utf-8') as f:
+    with open(METADATA_PATH, "w", encoding='utf-8') as f:
         json.dump(metadata_dict, f, ensure_ascii=False, indent=2)
     
     print("✅")

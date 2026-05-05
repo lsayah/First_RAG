@@ -1,5 +1,5 @@
 # ============================================================================
-# 0. IMPORT
+# 0. IMPORT & CONFIGURATION
 # ============================================================================
 
 import json
@@ -7,11 +7,11 @@ import os
 import numpy as np
 import faiss
 import tiktoken
-from pathlib import Path
 from groq import Groq
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 from utils.embedding import get_embeddings
+from config import INDEX_PATH, METADATA_PATH, CONTEXT_PATH
 
 load_dotenv()
 
@@ -25,8 +25,8 @@ def retrieve_chunks(question, k=3):
 	
 	# Charge index + metadata (avec gestion d'erreur)
 	try:
-		index = faiss.read_index("index.faiss")
-		with open("metadata.json", "r", encoding='utf-8') as f:
+		index = faiss.read_index(str(INDEX_PATH))
+		with open(METADATA_PATH, "r", encoding='utf-8') as f:
 			metadata = json.load(f)
 	except FileNotFoundError:
 		raise FileNotFoundError(
@@ -79,7 +79,7 @@ def build_context(question):
 	"""Construit context.txt avec chunks + sources (limité en tokens)"""
 	
 	# Charge template context
-	with open("context.txt", "r", encoding='utf-8') as f:
+	with open(CONTEXT_PATH, "r", encoding='utf-8') as f:
 		context_template = f.read()
 	
 	# Récupère chunks

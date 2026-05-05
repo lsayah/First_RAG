@@ -1,5 +1,5 @@
 # ============================================================================
-# 0. IMPORT
+# 0. IMPORT & CONFIGURATION
 # ============================================================================
 
 import sys
@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from get_sources import fetch_mifid_ii, fetch_basel_iii, fetch_amf_guide
+from config import DOCUMENTS_DIR, INDEX_PATH
 
 
 # ============================================================================
@@ -17,9 +18,7 @@ from get_sources import fetch_mifid_ii, fetch_basel_iii, fetch_amf_guide
 
 def fetch_sources():
 
-    docs_dir = Path("documents")
-    
-    if docs_dir.exists() and list(docs_dir.glob("*.txt")):
+    if DOCUMENTS_DIR.exists() and list(DOCUMENTS_DIR.glob("*.txt")):
         print("\n✅ Documents déjà présents, skip fetch\n")
         return True
     
@@ -44,9 +43,7 @@ print("\n🔍 Récupération sources financières OK\n")
 
 def indexation():
 
-    index_path = Path("index.faiss")
-    
-    if index_path.exists():
+    if INDEX_PATH.exists():
         print("\n✅ Index FAISS déjà présent, skip indexation\n")
         return True
     
