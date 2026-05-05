@@ -6,6 +6,8 @@ import json
 import os
 import numpy as np
 import faiss
+import tiktoken
+from pathlib import Path
 from groq import Groq
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
@@ -21,10 +23,18 @@ load_dotenv()
 def retrieve_chunks(question, k=3):
 	"""Cherche k chunks similaires dans FAISS"""
 	
-	# Charge index FAISS + metadata
-	index = faiss.read_index("index.faiss")
-	with open("metadata.json", "r", encoding='utf-8') as f:
-		metadata = json.load(f)
+	# Charge index + metadata (avec gestion d'erreur)
+	try:
+		index = faiss.read_index("index.faiss")
+		with open("metadata.json", "r", encoding='utf-8') as f:
+			metadata = json.load(f)
+	except FileNotFoundError:
+		raise FileNotFoundError(
+			"❌ Index FAISS ou métadonnées non trouvés!\n"
+			"   Solution: Lancer 'python src/main.py'"
+		)
+	except Exception as e:
+		raise RuntimeError(f"❌ Erreur lors du chargement: {e}")
 	
 	# Embed question
 	sentence_transformer = SentenceTransformer("distiluse-base-multilingual-cased-v2")
@@ -54,8 +64,15 @@ def retrieve_chunks(question, k=3):
 # ============================================================================
 
 def count_tokens(text):
-	"""Estimation tokens (1 token ≈ 4 caractères)"""
-	return len(text) // 4
+
+	try:
+		encoding = tiktoken.get_encoding("cl100k_base")  
+		tokens = encoding.encode(text)
+		return len(tokens)
+	except Exception as e:
+		# Si tiktoken échoue, utilise estimation 
+		print(f"⚠️  Fallback token counting: {e}")
+		return len(text) // 4
 
 
 def build_context(question):
@@ -95,7 +112,7 @@ def build_context(question):
 
 
 # ============================================================================
-# 3. RÉPONSE GROQ
+# 3. RÉPONSE GROQ + TOKEN TRACKING
 # ============================================================================
 
 def answer_question(question):
@@ -105,7 +122,12 @@ def answer_question(question):
 	# Construit context avec chunks
 	context = build_context(question)
 	
-	# Appel Groq
+	# Compte tokens avant appel Groq
+	context_tokens = count_tokens(context)
+	question_tokens = count_tokens(question)
+	total_input_tokens = context_tokens + question_tokens
+	
+	# Appel Groq (récupère aussi usage stats)
 	chat_completion = client.chat.completions.create(
 		messages=[
 			{"role": "system", "content": context},
@@ -114,7 +136,23 @@ def answer_question(question):
 		model="llama-3.3-70b-versatile"
 	)
 	
-	return chat_completion.choices[0].message.content
+	response = chat_completion.choices[0].message.content
+	
+	# Récupère stats réels de Groq
+	usage = chat_completion.usage
+	
+	# Affiche stats
+	print("\n" + "="*50)
+	print("📊 TOKEN STATISTICS")
+	print("="*50)
+	print(f"Context:         {context_tokens:4d} tokens")
+	print(f"Question:        {question_tokens:4d} tokens")
+	print(f"Total input:     {usage.prompt_tokens:4d} tokens (Groq)")
+	print(f"Response:        {usage.completion_tokens:4d} tokens (Groq)")
+	print(f"Total:           {usage.total_tokens:4d} tokens")
+	print("="*50 + "\n")
+	
+	return response
 
 
 # ============================================================================
