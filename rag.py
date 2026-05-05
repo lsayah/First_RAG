@@ -1,14 +1,12 @@
-from groq import Groq
-
-
+# IMPORT
 from groq import Groq
 from dotenv import load_dotenv
 import json
 import os 
-
 import chromadb
-from vector_db import retrieve
 
+# Import interne
+from vector_db import retrieve
 from sentence_transformers import SentenceTransformer
 
 
