@@ -5,37 +5,30 @@
 import sys
 from pathlib import Path
 
-# Fix imports src/ - MUST BE BEFORE OTHER IMPORTS!
+# Fix imports src/ 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from get_sources import fetch_mifid_ii, fetch_basel_iii, fetch_amf_guide
-from config import DOCUMENTS_DIR, INDEX_PATH
+from config import DOCUMENTS_DIR, INDEX_PATH, PDF_DIR
+
+# Import la fonction d'extraction
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.extract_pdfs import extract_all_pdfs
 
 
 # ============================================================================
-# 1. Telechargement Sources (idempotent)
+# 1. Vérification PDF extraits
 # ============================================================================
 
-def fetch_sources():
-
+def check_documents():
+    """Vérifie si les documents sont déjà extraits, sinon lance l'extraction"""
+    
     if DOCUMENTS_DIR.exists() and list(DOCUMENTS_DIR.glob("*.txt")):
-        print("\n✅ Documents déjà présents, skip fetch\n")
+        print("\n✅ Documents déjà extraits, skip extraction\n")
         return True
     
-    
-    results = {
-        "MiFID II": fetch_mifid_ii(),
-        "Bâle III": fetch_basel_iii(),
-        "AMF Guide": fetch_amf_guide()
-    }
-    
-    for name, success in results.items():
-        status = "✅" if success else "❌"
-        print(f"{status} {name}")
-    
-    return all(results.values())
+    print("\n📄 Documents manquants, extraction en cours...\n")
+    return extract_all_pdfs()
 
-print("\n🔍 Récupération sources financières OK\n")
 
 # ============================================================================
 # 2. Indexation (idempotent)
@@ -83,8 +76,8 @@ def chat():
 # ============================================================================
 
 if __name__ == "__main__":
-    if not fetch_sources():
-        print("❌ Erreur fetch")
+    if not check_documents():
+        print("❌ Erreur extraction PDFs")
         exit(1)
     
     if not indexation():

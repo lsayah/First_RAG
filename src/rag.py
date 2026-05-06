@@ -44,16 +44,21 @@ def retrieve_chunks(question, k=3):
 	# Cherche dans FAISS
 	distances, ids = index.search(embedded_q, k=k)
 	ids = ids[0]  # Récupère les indices
+	distances = distances[0]  # Récupère les distances (scores)
 	
-	# Récupère chunks + métadonnées
+	# Récupère chunks + métadonnées + scores
 	chunks_with_meta = []
-	for idx in ids:
+	for idx, distance in zip(ids, distances):
 		chunk_meta = metadata[str(idx)]
+		# Convertir distance en score de similarité (0-100, plus haut = mieux)
+		similarity_score = max(0, 100 - (distance * 10))
 		chunks_with_meta.append({
-			'text': chunk_meta.get('chunk', ''),
+			'text': chunk_meta.get('chunk', ''),  # Chunk complet pour Groq
+			'first_phrase': chunk_meta.get('first_phrase', 'N/A'),  # Pour l'affichage
 			'source': chunk_meta.get('source', 'Unknown'),
 			'document': chunk_meta.get('document', 'Unknown'),
-			'filename': chunk_meta.get('filename', 'Unknown')
+			'filename': chunk_meta.get('filename', 'Unknown'),
+			'score': similarity_score
 		})
 	
 	return chunks_with_meta
@@ -92,9 +97,8 @@ def build_context(question):
 	
 	for chunk in chunks_with_meta:
 		chunk_str = f"""
-[{chunk['source']} - {chunk['document']}]
+[Source: {chunk['filename']} - Document: {chunk['document']}]
 {chunk['text']}
-[Source: {chunk['filename']}]
 """
 		tokens = count_tokens(chunk_str)
 		
@@ -118,6 +122,9 @@ def build_context(question):
 def answer_question(question):
 	
 	client = Groq(api_key=os.environ["GROQ_API_KEY"])
+	
+	# Récupère chunks (pour afficher sources)
+	chunks_raw = retrieve_chunks(question, k=3)
 	
 	# Construit context avec chunks
 	context = build_context(question)
@@ -150,7 +157,20 @@ def answer_question(question):
 	print(f"Total input:     {usage.prompt_tokens:4d} tokens (Groq)")
 	print(f"Response:        {usage.completion_tokens:4d} tokens (Groq)")
 	print(f"Total:           {usage.total_tokens:4d} tokens")
-	print("="*50 + "\n")
+	print("="*50)
+	
+	# Affiche les sources utilisées avec détails
+	print("\n📚 SOURCES UTILISÉES:")
+	print("-"*70)
+	for i, chunk in enumerate(chunks_raw, 1):
+		# Affiche le nom du fichier + score
+		score = chunk.get('score', 0)
+		print(f"\n[{i}] {chunk['filename']} (Pertinence: {score:.1f}%)")
+		
+		# Affiche la première phrase (depuis metadata)
+		first_phrase = chunk.get('first_phrase', 'N/A')
+		print(f"    📝 {first_phrase}")
+	print("\n" + "="*70 + "\n")
 	
 	return response
 
