@@ -2,6 +2,17 @@
 
 Système RAG from scratch (sans LangChain/LlamaIndex) pour répondre sur la régulation financière : MiFID II, Bâle III, AMF.
 
+
+## Adaptation du Projet
+
+Ce projet a été orienté vers un cas d'usage de finance réglementaire, avec l'idée de travailler à partir de plusieurs sources et dans plusieurs langues (francais et anglais).
+
+Concrètement, le corpus rassemble plusieurs documents réglementaires au lieu de s'appuyer sur une seule base, ce qui permet d'avoir des réponses plus riches et plus fiables. L'indexation et la recherche utilisent aussi des modèles capables de traiter du français et de l'anglais, ce qui était important pour les documents du projet.
+
+J'ai aussi gardé un fonctionnement RAG assez contrôlé : le système récupère uniquement les chunks les plus pertinents, limite le contexte envoyé au modèle et affiche les sources retrouvées. L'application Streamlit sert ensuite d'interface simple pour poser une question et consulter rapidement les passages utilisés.
+
+L'objectif était surtout de rendre le prototype plus crédible pour un usage réglementaire et aussi me servir au niveau perso. 
+
 ---
 
 ## ⚡ Quick Start
@@ -24,15 +35,15 @@ python src/main.py
 ## 🏗️ Architecture
 
 ```
-Documents (3 fichiers)
+Documents source (TXT / PDF)
       ↓
-indexation.py → 25 chunks + embeddings
+indexation.py → chunking (400 mots, overlap 50) + embeddings
       ↓
-index.faiss + metadata.json (persiste)
+index.faiss + metadata.json (chunk, first_phrase, source)
       ↓
-rag.py → FAISS search + Groq + citations
+rag.py → FAISS search + Groq + citations + limite contexte
       ↓
-Réponse avec [Source: document]
+Réponse avec sources affichées dans l'UI Streamlit
 ```
 
 ---
@@ -41,22 +52,22 @@ Réponse avec [Source: document]
 
 ```
 src/
-├─ config.py           (Centralized paths)
+├─ config.py           (Chemins, modèles, limites)
 ├─ main.py             (Orchestrateur)
 ├─ rag.py              (RAG + Groq + chat)
-├─ indexation.py       (FAISS creation)
-├─ get_sources.py      (Scrapers - static)
+├─ indexation.py       (Extraction + chunking + FAISS)
 └─ utils/
-   └─ embedding.py     (Embeddings batch)
+      └─ embedding.py     (Embeddings batch)
 
-documents/             (3 fichiers .txt)
-├─ mifid_ii.txt
-├─ basel_iii.txt
-└─ amf_guide.txt
+DOCS/Sources/          (sources PDF / textes)
+├─ Bâle 3 Final.txt
+├─ Gouvernance BCBS 2015.txt
+└─ autres sources du corpus
 
 index.faiss            (Generated)
 metadata.json          (Generated)
 context.txt            (System prompt)
+src/app.py             (Interface Streamlit)
 ```
 
 ---
@@ -80,11 +91,12 @@ context.txt            (System prompt)
 
 | Feature             | Détail                                        |
 | ------------------- | --------------------------------------------- |
-| **Token Counting**  | Tiktoken precise (cl100k_base)                |
-| **Token Display**   | Stats per query (context, question, response) |
-| **Chunk Limit**     | 1500 tokens max before Groq                   |
+| **Token Counting**  | Tiktoken précis (cl100k_base) avec fallback   |
+| **Token Display**   | Stats par requête (contexte, question, réponse)|
+| **Chunk Limit**     | 3000 tokens max avant Groq                    |
 | **Top-K Retrieval** | 3 chunks by L2 distance                       |
-| **Idempotence**     | Skip fetch/index if exists                    |
+| **Idempotence**     | Skip indexation si `index.faiss` existe       |
+| **UI**              | Chat Streamlit avec sidebar, header, sources   |
 
 ---
 
@@ -119,6 +131,7 @@ Tous les chemins centralisés dans `src/config.py` :
 - `INDEX_PATH`: Chemin index.faiss
 - `METADATA_PATH`: Chemin metadata.json
 - `DOCUMENTS_DIR`: Dossier documents/
+- `PDF_DIR`: Dossier `DOCS/Sources/`
 - `CONTEXT_PATH`: context.txt (system prompt)
 
 ---
@@ -136,11 +149,12 @@ Tous les chemins centralisés dans `src/config.py` :
 
 ## 📋 Tech Stack
 
-- **Chunking :** 500 mots, overlap 50
-- **Embeddings :** distiluse-base-multilingual (384 dims)
+- **Chunking :** 400 mots, overlap 50
+- **Embeddings :** paraphrase-multilingual-mpnet-base-v2
 - **Index :** FAISS IndexFlatL2
 - **LLM :** Groq llama-3.3-70b-versatile
 - **Tokenizer :** tiktoken cl100k_base
+- **Interface :** Streamlit
 
 ---
 

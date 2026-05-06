@@ -221,7 +221,7 @@ def answer_question(question):
         print("⚠️  Aucun chunk retenu.")
     print("\n" + "="*70 + "\n")
 
-    return response
+    return response, chunks_final
 
 
 # ============================================================================
