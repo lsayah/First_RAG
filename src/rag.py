@@ -11,9 +11,36 @@ from groq import Groq
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 from utils.embedding import get_embeddings
-from config import INDEX_PATH, METADATA_PATH, CONTEXT_PATH
+from config import INDEX_PATH, METADATA_PATH, CONTEXT_PATH, EMBEDDING_MODEL, LLM_MODEL, MAX_CONTEXT_TOKENS
 
 load_dotenv()
+
+# ============================================================================
+# CACHES GLOBAUX (pour éviter rechargements)
+# ============================================================================
+_embedding_model = None
+_metadata_cache = None
+
+
+# ============================================================================
+# FONCTIONS DE CACHE
+# ============================================================================
+
+def get_embedding_model():
+	"""Retourne le modèle embedding en cache (évite rechargement)"""
+	global _embedding_model
+	if _embedding_model is None:
+		_embedding_model = SentenceTransformer(EMBEDDING_MODEL)
+	return _embedding_model
+
+
+def get_metadata():
+	"""Retourne metadata.json en cache (évite I/O disk répété)"""
+	global _metadata_cache
+	if _metadata_cache is None:
+		with open(METADATA_PATH, "r", encoding='utf-8') as f:
+			_metadata_cache = json.load(f)
+	return _metadata_cache
 
 
 # ============================================================================
@@ -26,8 +53,7 @@ def retrieve_chunks(question, k=3):
 	# Charge index + metadata (avec gestion d'erreur)
 	try:
 		index = faiss.read_index(str(INDEX_PATH))
-		with open(METADATA_PATH, "r", encoding='utf-8') as f:
-			metadata = json.load(f)
+		metadata = get_metadata()  
 	except FileNotFoundError:
 		raise FileNotFoundError(
 			"❌ Index FAISS ou métadonnées non trouvés!\n"
@@ -36,8 +62,8 @@ def retrieve_chunks(question, k=3):
 	except Exception as e:
 		raise RuntimeError(f"❌ Erreur lors du chargement: {e}")
 	
-	# Embed question
-	sentence_transformer = SentenceTransformer("distiluse-base-multilingual-cased-v2")
+	# Embed question 
+	sentence_transformer = get_embedding_model()
 	embedded_q = get_embeddings(sentence_transformer, [question])
 	embedded_q = np.array(embedded_q).astype('float32')
 	
@@ -52,6 +78,7 @@ def retrieve_chunks(question, k=3):
 		chunk_meta = metadata[str(idx)]
 		# Convertir distance en score de similarité (0-100, plus haut = mieux)
 		similarity_score = max(0, 100 - (distance * 10))
+		
 		chunks_with_meta.append({
 			'text': chunk_meta.get('chunk', ''),  # Chunk complet pour Groq
 			'first_phrase': chunk_meta.get('first_phrase', 'N/A'),  # Pour l'affichage
@@ -93,7 +120,6 @@ def build_context(question):
 	# Construit string chunks avec sources
 	chunks_text = ""
 	token_count = 0
-	max_tokens = 1500
 	
 	for chunk in chunks_with_meta:
 		chunk_str = f"""
@@ -103,7 +129,7 @@ def build_context(question):
 		tokens = count_tokens(chunk_str)
 		
 		# Ajoute chunk si token limit pas atteint
-		if token_count + tokens <= max_tokens:
+		if token_count + tokens <= MAX_CONTEXT_TOKENS:
 			chunks_text += chunk_str
 			token_count += tokens
 		else:
@@ -140,7 +166,7 @@ def answer_question(question):
 			{"role": "system", "content": context},
 			{"role": "user", "content": question}
 		],
-		model="llama-3.3-70b-versatile"
+		model=LLM_MODEL
 	)
 	
 	response = chat_completion.choices[0].message.content
